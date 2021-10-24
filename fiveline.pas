@@ -1,4 +1,4 @@
-(* Amiga 1.3 Port using HiSpeed Pascal 1.2                            *)
+(* Amiga 1.4 Port using HiSpeed Pascal 1.2                            *)
 (* RetroNick's version of popular fiveline puzzle/logic game          *)
 (* This Program is free and open source. Do what ever you like with   *)
 (* the code. Tested on freepascal for Dos GO32 target but should work *)
@@ -13,16 +13,14 @@
 (* nickshardware2020@gmail.com                                        *)
 (*                                                                    *)
 
-
-
-
 Program FiveLine;
-     uses crt,graph,pathfind,squeue;
+     uses aggraph,pathfind,squeue,
+          Exec,AmigaDos, Graphics, Intuition,Utility;
 
 Const
-  ProgramName ='Amiga Fiveline v1.2';
+  ProgramName ='Amiga Fiveline v1.4';
   ProgramAuthor = 'RetroNick';
-  ProgramReleaseDate = 'October 15 - 2021';
+  ProgramReleaseDate = 'October 23 - 2021';
 
   HSize = 9;   (*if you cange hsize or vsize make sure to change in*)
   VSize = 9;   (*pathfind unit also*)
@@ -54,15 +52,19 @@ Const
   GBItemLightGray = 15;
   GBItemBrick     = 16;
 
+  AmigaLeftKey = 1079;
+  AmigaRightKey = 1078;
+  AmigaDownKey = 1077;
+  AmigaUpKey = 1076;
 
 type
-GameBoardRec = record
-                  Item : integer;
-               end;
+  GameBoardRec = record
+                   Item : integer;
+                 end;
 
-GameBoard = array[0..8,0..8] of GameBoardRec;
+  GameBoard = array[0..8,0..8] of GameBoardRec;
 
-(*used for storing path when performing a MoveTo command*)
+(*used for storing path when performing a Move To command*)
 (*move piece another valid position*)
 pathpoints = record
               x,y : integer;
@@ -126,19 +128,6 @@ begin
  IntToStr:=TStr;
 end;
 
-function GetKey : integer;
-var
- ch : char;
-begin
- Repeat Until Keypressed;
- ch:=readkey;
- if ch = #0 then
- begin
-   ch:=readkey;
- end;
- GetKey:=ORD(ch);
-end;
-
 Procedure InitGameBoard;
 var
  i, j : integer;
@@ -196,7 +185,6 @@ begin
   Ellipse(x+GBPos.xoff,y+GBPos.yoff,0,360,r1,r2);
 end;
 
-
 procedure DrawFilledRect(x,y : integer);
 begin
   GB_Bar(x*GBSQWidth+1,y*GBSQHeight+1,
@@ -250,8 +238,6 @@ begin
   GB_Ellipse(x*GBSQWidth+xoff,y*GBSQHeight+yoff,r1,r2);
 end;
 
-
-
 Procedure DrawGameBoardItem(x,y,item : integer);
 begin
   if item=GBItemEmpty then
@@ -284,6 +270,8 @@ begin
   begin
     SetColor(Blue);
     SetBkColor(Blue);
+    SetFillStyle(SolidFill,Blue);
+    DrawFilledRect(x,y);
     SetFillStyle(xHatchFill,Yellow);
     DrawFilledRect(x,y);
   end
@@ -529,7 +517,6 @@ end;
 
 procedure AddRowsToQueue(x,y,stepx,stepy,count : integer;
                                    var apoints : aitempoints);
-
 begin
  apoints[aiCounter].item:=GB[x,y].Item;
  apoints[aiCounter].x:=x;
@@ -558,17 +545,17 @@ begin
  score.yoff:=ypos;
 end;
 
-procedure DrawTitle;
+procedure DrawTitle(xpos,ypos : integer);
 begin
- SetTextStyle(DefaultFont,HorizDir,2);
+ 
  SetColor(White);
  SetBkColor(Black);
- OutTextXY(10,0,ProgramName+' '+'By '+ProgramAuthor+' - Released on '+ProgramReleaseDate);
+ OutTextXY(xpos,ypos,ProgramName+' '+'By '+ProgramAuthor+' - Released on '+ProgramReleaseDate);
 end;
 
 procedure DrawGameOver;
 begin
- SetTextStyle(DefaultFont,HorizDir,2);
+ 
  SetBkColor(Blue);
  SetColor(Yellow);
  OutTextXY(GBPos.xoff+95,GBPos.yoff+85,'Game Over');
@@ -586,7 +573,7 @@ begin
  SetFillStyle(SolidFill,Blue);
  Bar(help.xoff,help.yoff,help.xoff+w,help.yoff+h);
  
- SetTextStyle(DefaultFont,HorizDir,1);
+ 
  SetColor(Yellow);
  OutTextXY(help.xoff+10,help.yoff+5, 'How To Play Fiveline');
  SetColor(White);
@@ -620,7 +607,7 @@ begin
  if justscore = false then
  begin
    Bar(Score.xoff,score.yoff,Score.xoff+w,score.yoff+h);
-   SetTextStyle(DefaultFont,HorizDir,2);
+   
    SetColor(White);
    SetBkColor(Blue);
    OutTextXY(Score.xoff+10,score.yoff+5,'SCORE:');
@@ -630,7 +617,7 @@ begin
  SetFillStyle(SolidFill,Blue);
  SetColor(Blue);
  Bar(Score.xoff,score.yoff+14,Score.xoff+w,score.yoff+h);
- SetTextStyle(DefaultFont,HorizDir,2);
+ 
  SetBkColor(Blue);
  SetColor(White);
  OutTextXY(Score.xoff+10,score.yoff+17,IntToStr(score.score));
@@ -1082,12 +1069,13 @@ end;
 
 Procedure StartGame;
 begin
+  Randomize;
   cheatmode:=false;
   InitScore;
-  SetGameBoardPos(30,12);
-  SetGameHelpPos(330,62);
-  SetGameScorePos(330,12);
-  DrawTitle;
+  SetGameBoardPos(30,5);
+  SetGameHelpPos(330,50);
+  SetGameScorePos(330,5);
+ (* DrawTitle(10,5);*)
   DisplayScore(false);
   InitAIQueue;
   InitGameBoard;
@@ -1099,50 +1087,23 @@ begin
   DrawCrossHair;
 end;
 
-Procedure SetEGAVGAColors;
-begin
-  (* Turbo Pascal Palette Commands, 16 Colors, Format=6 Bit *)
-SetRGBPalette( 0, 0, 0, 0);
-SetRGBPalette( 1, 0, 0, 42);
-SetRGBPalette( 2, 0, 42, 0);
-SetRGBPalette( 3, 0, 42, 42);
-SetRGBPalette( 4, 42, 0, 0);
-SetRGBPalette( 5, 42, 0, 42);
-SetRGBPalette( 6, 42, 21, 0);
-SetRGBPalette( 7, 42, 42, 42);
-SetRGBPalette( 8, 21, 21, 21);
-SetRGBPalette( 9, 21, 21, 63);
-SetRGBPalette( 10, 21, 63, 21);
-SetRGBPalette( 11, 21, 63, 63);
-SetRGBPalette( 12, 63, 21, 21);
-SetRGBPalette( 13, 63, 21, 63);
-SetRGBPalette( 14, 63, 63, 21);
-SetRGBPalette( 15, 63, 63, 63);
-
-end;
-
+Const
+	GRev           = 33;
+	IRev           = 33; 
 
 var
    gd,gm    : integer;
-          k : integer;
    gameover : boolean;
-begin
- gd:=ega;
- gm:=egalo;
- initgraph(gd,gm,'');
-  SetEGAVGAColors;
 
- Randomize;
- gameover:=false;
- StartGame;
- Repeat
-  k:=GetKey;
+Procedure ProcessKeys( k,q : integer);
+begin
+ (*  writeln(k,q);*)
   if gameover = false then
   begin
-    if (k=ord('a'))  then MoveCrossHairLeft;
-    if (k=ord('s'))  then MoveCrossHairRight;
-    if (k=ord('w'))  then MoveCrossHairUp;
-    if (k=ord('z'))  then MoveCrossHairDown;
+    if (k=ord('a')) or (k=ord('A')) or (k=AmigaLeftKey)  then MoveCrossHairLeft;
+    if (k=ord('s')) or (k=ord('S')) or (k=AmigaRightKey) then MoveCrossHairRight;
+    if (k=ord('w')) or (k=ord('W')) or (k=AmigaUpKey) then MoveCrossHairUp;
+    if (k=ord('z')) or (k=ord('Z')) or (k=AmigaDownKey) then MoveCrossHairDown;
   end;
 (*  if k=ord('[') then CheckForRows;*)
 (*  if k=ord('g')  then DrawGameBoard;*)
@@ -1166,8 +1127,78 @@ begin
      Cheatmode:=NOT cheatmode;
      DrawHelp;
   end;
- Until (k=ord('q')) or (k=ord('Q')) or (k=ord('x')) or (k=ord('X'));
- closegraph;
+end;
+
+procedure HandleEvents;
+var
+ imsg: pIntuiMessage;
+ sigr: long;
+ quit : boolean;
+ GraphWindow : pWindow;
+begin
+	GraphWindow:=agGetGraphWindow;
+  quit:=false;
+
+  Repeat  
+    (* Wait for an event *)
+  	sigr := Wait((long(1) shl GraphWindow^.UserPort^.mp_SigBit) or SIGBREAKF_CTRL_C);
+
+	  (* Did we get a break signal *)
+	  if (sigr and SIGBREAKF_CTRL_C) <> 0 then quit := true;
+
+	  (* Pull Intuition messages *)
+	  imsg := pIntuiMessage(GetMsg(GraphWindow^.UserPort));
+	  while imsg <> nil do
+	  begin
+		  with imsg^ do
+		  begin
+			  (* Handle each message *)
+			  case Class of
+				  IDCMP_RAWKEY:
+					   ProcessKeys(1000+code,qualifier); (*qualifier is extra code for shift/control*)
+				  IDCMP_VANILLAKEY:
+            if (code=ord('q')) or (code=ord('Q')) or (code=ord('x')) or (code=ord('X')) then 
+            begin
+              quit:=true;
+            end
+            else
+            begin  
+					    ProcessKeys(code,qualifier);
+            end;  
+			  end;
+		end;
+		(* Done with the message, so reply to it *)
+		ReplyMsg(pMessage(imsg));
+		imsg := pIntuiMessage(GetMsg(GraphWindow^.UserPort))
+	end
+ Until quit = true;
+end;
+
+Procedure InitLibs;
+begin
+  IntuitionBase := pIntuitionBase(OpenLibrary('intuition.library', IRev));
+  if IntuitionBase = NIL then exit;
+  GfxBase := pGfxBase(OpenLibrary('graphics.library', GRev));
+  if GfxBase = NIL then exit;
+end;
+
+Procedure CloseLibs;
+begin
+  if GfxBase <> NIL then CloseLibrary(pLibrary(GfxBase));
+  if IntuitionBase <> NIL then CloseLibrary(pLibrary(IntuitionBase));
+end;
 
 
+begin
+  InitLibs; 
+  gd:=ega;
+  gm:=egalo;
+  agSetScreenTitle(ProgramName+' '+ProgramAuthor+' '+ProgramReleaseDate);
+  
+  initgraph(gd,gm,'');
+  gameover:=false;
+  StartGame;
+  HandleEvents;
+  closegraph;
+  CloseLibs;
 end.
